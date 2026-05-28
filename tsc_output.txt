@@ -1,0 +1,2 @@
+TypeScript: No errors found
+[full output: ~/.local/share/rtk/tee/1779970699_tsc.log]

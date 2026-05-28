@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { 
@@ -20,8 +20,6 @@ import {
   Eye, 
   EyeOff, 
   HelpCircle,
-  Menu,
-  ChevronRight,
   Database,
   Crosshair
 } from 'lucide-react';
@@ -439,7 +437,6 @@ export default function App() {
         if (activeConst !== 'all' && activeConst !== constName) return;
 
         const points: THREE.Vector3[] = [];
-        const indices: number[] = [];
 
         lines.forEach(line => {
           const s1 = famousStars.find(s => s.id === line.id1);
@@ -762,7 +759,6 @@ export default function App() {
       }
 
       // Twinkle ambient backdrop particles
-      const positions = starGeometry.attributes.position.array as Float32Array;
       const colors = starGeometry.attributes.color.array as Float32Array;
       if (tSpeedMultiplier > 0) {
         for (let i = 0; i < starsCount; i++) {
