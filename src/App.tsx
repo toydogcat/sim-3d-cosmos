@@ -728,7 +728,6 @@ export default function App() {
 
       // 2D CLIENT-SIDE PROJECTIONS & LABELS CALCULATOR
       const activeProjections: Array<{ id: string; name: string; x: number; y: number; isPlanet: boolean; visible: boolean }> = [];
-      const currentConfig = animConfigRef.current;
 
       if (currentConfig.showLabels) {
         // Project primary planets
@@ -844,7 +843,7 @@ export default function App() {
         
         if (object.material) {
           if (Array.isArray(object.material)) {
-            object.material.forEach((mat) => cleanMaterial(mat));
+            object.material.forEach((mat: any) => cleanMaterial(mat));
           } else {
             cleanMaterial(object.material);
           }
