@@ -127,6 +127,25 @@ export default function App() {
     };
   }, [speed, showOrbits, showConstellations, scaleMode, selectedPlanet, trackingMode, showLabels, selectedConstellation]);
 
+  // Planet orbit dynamic highlighting effect
+  useEffect(() => {
+    if (!orbitRingGroupRef.current) return;
+    
+    orbitRingGroupRef.current.children.forEach((child) => {
+      if (!(child instanceof THREE.Line)) return;
+      
+      const planetId = child.name.replace('orbit-', '');
+      const isSelected = selectedPlanet?.id === planetId;
+      
+      const mat = child.material as THREE.LineBasicMaterial;
+      if (mat) {
+        mat.color.set(isSelected ? '#00e5ff' : '#222538');
+        mat.opacity = isSelected ? 0.8 : 0.28;
+        mat.needsUpdate = true;
+      }
+    });
+  }, [selectedPlanet]);
+
   // Handle soundtrack toggle
   const toggleSound = () => {
     const newState = !soundOn;
@@ -528,6 +547,7 @@ export default function App() {
         });
 
         const orbitLine = new THREE.Line(ringGeo, ringMat);
+        orbitLine.name = `orbit-${p.id}`;
         orbitRingGroup.add(orbitLine);
       });
     };
@@ -708,8 +728,9 @@ export default function App() {
 
       // 2D CLIENT-SIDE PROJECTIONS & LABELS CALCULATOR
       const activeProjections: Array<{ id: string; name: string; x: number; y: number; isPlanet: boolean; visible: boolean }> = [];
+      const currentConfig = animConfigRef.current;
 
-      if (animConfigRef.current.showLabels) {
+      if (currentConfig.showLabels) {
         // Project primary planets
         planData.forEach(p => {
           const group = newPlanetMeshes[p.id];
@@ -743,7 +764,7 @@ export default function App() {
           const sPos = new THREE.Vector3(star.x, star.y, star.z);
           sPos.project(camera);
 
-          const visible = sPos.z <= 1.0 && (selectedConstellation === 'all' || selectedConstellation === star.constellation.split(' ')[0]);
+          const visible = sPos.z <= 1.0 && (currentConfig.selectedConstellation === 'all' || currentConfig.selectedConstellation === star.constellation.split(' ')[0]);
 
           const screenX = (sPos.x * 0.5 + 0.5) * width;
           const screenY = (-sPos.y * 0.5 + 0.5) * height;
@@ -765,11 +786,11 @@ export default function App() {
 
       // Constellation group rendering
       if (constellationLineGroupRef.current) {
-        constellationLineGroupRef.current.visible = showConstellations;
+        constellationLineGroupRef.current.visible = currentConfig.showConstellations;
       }
       // Orbit paths group rendering
       if (orbitRingGroupRef.current) {
-        orbitRingGroupRef.current.visible = showOrbits;
+        orbitRingGroupRef.current.visible = currentConfig.showOrbits;
       }
 
       // Twinkle ambient backdrop particles
@@ -795,29 +816,28 @@ export default function App() {
 
     renderLoop();
 
-    // HANDLE RESIZING EVENTS
-    const handleResize = () => {
-      if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
-      const w = containerRef.current.clientWidth;
-      const h = containerRef.current.clientHeight;
+    // HANDLE RESIZING EVENTS USING RESIZEOBSERVER
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (!containerRef.current || !cameraRef.current || !rendererRef.current) continue;
+        const { width: w, height: h } = entry.contentRect;
+        cameraRef.current.aspect = w / h;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(w, h);
+      }
+    });
 
-      cameraRef.current.aspect = w / h;
-      cameraRef.current.updateProjectionMatrix();
-
-      rendererRef.current.setSize(w, h);
-    };
-
-    window.addEventListener('resize', handleResize);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
 
     // CLEANUP
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       cancelAnimationFrame(animationFrameId);
       
-      // Deep cleanup of Scene GPU resources
-      scene.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        
+      // Deep cleanup of Scene GPU resources (Mesh, Line, Points)
+      scene.traverse((object: any) => {
         if (object.geometry) {
           object.geometry.dispose();
         }
@@ -834,10 +854,25 @@ export default function App() {
       renderer.dispose();
     };
 
-    function cleanMaterial(material: THREE.Material) {
+    function cleanMaterial(material: any) {
       material.dispose();
+      
+      // Explicitly dispose of textures
+      if (material.map && typeof material.map.dispose === 'function') {
+        material.map.dispose();
+      }
+      if (material.bumpMap && typeof material.bumpMap.dispose === 'function') {
+        material.bumpMap.dispose();
+      }
+      if (material.normalMap && typeof material.normalMap.dispose === 'function') {
+        material.normalMap.dispose();
+      }
+      if (material.specularMap && typeof material.specularMap.dispose === 'function') {
+        material.specularMap.dispose();
+      }
+
       for (const key of Object.keys(material)) {
-        const value = (material as any)[key];
+        const value = material[key];
         if (value && typeof value.dispose === 'function') {
           value.dispose();
         }
@@ -848,9 +883,18 @@ export default function App() {
   // Hook to handle redraw of constellation lines on selection
   useEffect(() => {
     if (constellationLineGroupRef.current) {
-      // Clear old paths
+      // Clear old paths with proper GPU disposal
       while (constellationLineGroupRef.current.children.length > 0) {
-        constellationLineGroupRef.current.remove(constellationLineGroupRef.current.children[0]);
+        const child = constellationLineGroupRef.current.children[0] as any;
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m: any) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+        constellationLineGroupRef.current.remove(child);
       }
 
       Object.entries(constellationLines).forEach(([constName, lines]) => {
