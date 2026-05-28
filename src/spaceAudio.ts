@@ -149,6 +149,14 @@ class SpaceSoundEngine {
 
       pOsc.start(now);
       pOsc.stop(now + duration + 1.0);
+
+      // Disconnect nodes after playing to free memory
+      pOsc.onended = () => {
+        pOsc.disconnect();
+        pGain.disconnect();
+        delay.disconnect();
+        delayFeedback.disconnect();
+      };
     } catch (e) {
       console.warn('Could not play interactive celestial ping:', e);
     }

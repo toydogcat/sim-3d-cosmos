@@ -46,8 +46,9 @@ export default function App() {
   useEffect(() => {
     let lastScrollY = 0;
     const scrollThreshold = 8;
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY || document.documentElement.scrollTop;
+    const handleScroll = (e: Event) => {
+      const target = e.target as HTMLElement;
+      const currentScrollY = target.scrollTop;
       if (Math.abs(currentScrollY - lastScrollY) < scrollThreshold && currentScrollY > 10) return;
       const direction = currentScrollY > lastScrollY ? 'down' : 'up';
       window.parent.postMessage({
@@ -57,8 +58,17 @@ export default function App() {
       }, '*');
       lastScrollY = currentScrollY;
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    
+    const scrollContainer = document.getElementById('sidebar-tab-view');
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    }
+    
+    return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+      }
+    };
   }, []);
 
   // Vercount refresh on tab change
@@ -98,7 +108,9 @@ export default function App() {
     showConstellations,
     scaleMode,
     selectedPlanetId: '' as string | null,
-    trackingMode
+    trackingMode,
+    showLabels,
+    selectedConstellation
   });
 
   // Track state changes inside animation loop
@@ -109,9 +121,11 @@ export default function App() {
       showConstellations,
       scaleMode,
       selectedPlanetId: selectedPlanet ? selectedPlanet.id : null,
-      trackingMode
+      trackingMode,
+      showLabels,
+      selectedConstellation
     };
-  }, [speed, showOrbits, showConstellations, scaleMode, selectedPlanet, trackingMode]);
+  }, [speed, showOrbits, showConstellations, scaleMode, selectedPlanet, trackingMode, showLabels, selectedConstellation]);
 
   // Handle soundtrack toggle
   const toggleSound = () => {
@@ -695,7 +709,7 @@ export default function App() {
       // 2D CLIENT-SIDE PROJECTIONS & LABELS CALCULATOR
       const activeProjections: Array<{ id: string; name: string; x: number; y: number; isPlanet: boolean; visible: boolean }> = [];
 
-      if (showLabels) {
+      if (animConfigRef.current.showLabels) {
         // Project primary planets
         planData.forEach(p => {
           const group = newPlanetMeshes[p.id];
@@ -799,9 +813,37 @@ export default function App() {
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
+      
+      // Deep cleanup of Scene GPU resources
+      scene.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
+        
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach((mat) => cleanMaterial(mat));
+          } else {
+            cleanMaterial(object.material);
+          }
+        }
+      });
+
       renderer.dispose();
     };
-  }, [selectedConstellation, scaleMode, showLabels]);
+
+    function cleanMaterial(material: THREE.Material) {
+      material.dispose();
+      for (const key of Object.keys(material)) {
+        const value = (material as any)[key];
+        if (value && typeof value.dispose === 'function') {
+          value.dispose();
+        }
+      }
+    }
+  }, [scaleMode]); // Only re-init if scaleMode changes (realistic vs simplified sizes)
 
   // Hook to handle redraw of constellation lines on selection
   useEffect(() => {
@@ -884,11 +926,10 @@ export default function App() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div id="full-scope-sim" className="relative flex flex-col md:flex-row w-screen h-screen overflow-hidden bg-[#020206] text-slate-100 font-sans antialiased select-none">
-      
+    <div id="full-scope-sim" className="relative flex flex-col md:flex-row w-screen h-[100dvh] overflow-hidden bg-[#020206] text-slate-100 font-sans antialiased select-none">
+
       {/* LEFT SIDE PANEL - TELEMETRY & FLIGHT DECK CONTROLS */}
-      <div id="flight-deck-sidebar" className="relative z-10 flex flex-col w-full md:w-[360px] bg-slate-950/90 md:bg-slate-950/80 border-b md:border-b-0 md:border-r border-slate-800/80 backdrop-blur-md shrink-0">
-        
+      <div id="flight-deck-sidebar" className="relative z-10 flex flex-col w-full md:w-[360px] h-auto max-h-[40vh] md:max-h-none md:h-full bg-slate-950/90 md:bg-slate-950/80 border-b md:border-b-0 md:border-r border-slate-800/80 backdrop-blur-md shrink-0">
         {/* BRAND & HEADER SECTION */}
         <div id="deck-logo" className="flex items-center justify-between p-4 border-b border-slate-800/60 bg-slate-950">
           <div className="flex items-center gap-2">
