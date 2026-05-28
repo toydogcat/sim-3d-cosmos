@@ -1,0 +1,6 @@
+{
+  "name": "3D Interactive Solar System",
+  "description": "一個精美的 3D 互動星空與太陽系模擬，包含太陽、九大行星與月球，支援滑鼠鍵盤旋轉縮放、行星追蹤、軌道切換、運行速度調整及星座星空背景。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
